@@ -1,6 +1,6 @@
 fastapi==0.95.2
 uvicorn[standard]==0.22.0
-supabase==0.2.7
+supabase==2.18
 requests==2.31.0
 python-jose==3.3.0
 python-multipart==0.0.6
