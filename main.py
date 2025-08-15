@@ -52,7 +52,6 @@ def get_current_user_id():
 # Routes
 @app.get("/api/recipes")
 def suggest_recipes(user_id: str = Depends(get_current_user_id)):
-    # Get pantry items for the user
     response = supabase.table("pantry").select("item").eq("user_id", user_id).execute()
     if not response.data:
         return {"error": "No pantry items found"}
@@ -83,11 +82,17 @@ def suggest_recipes(user_id: str = Depends(get_current_user_id)):
     if ai_response.status_code != 200:
         raise HTTPException(status_code=500, detail=f"AI request failed: {ai_response.text}")
 
-    # Parse JSON and pretty-print
-    parsed = ai_response.json()
-    pretty_json = json.dumps(parsed, indent=4)  # 4-space indentation
+    data = ai_response.json()
 
-    return json.loads(pretty_json)  # FastAPI will return it as JSON
+    # Extract only the AI text
+    try:
+        recipe_text = data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError):
+        recipe_text = "No recipe generated."
+
+    # Return as JSON
+    return {"recipes": recipe_text}
+
     
 @app.post("/pantry/add", status_code=201)
 def add_pantry_item(item: PantryItem, user_id: str = Depends(get_current_user_id)):
@@ -122,6 +127,7 @@ def remove_pantry_item(item_id: int, user_id: str = Depends(get_current_user_id)
 @app.get("/")
 def root():
     return {"message": "Welcome to Pantry API!"}
+
 
 
 
