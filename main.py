@@ -73,10 +73,13 @@ def suggest_recipes(user_id: str = Depends(get_current_user_id)):
 def add_pantry_item(item: PantryItem, user_id: str = Depends(get_current_user_id)):
     data = item.model_dump()
     data["user_id"] = user_id
+    if "unit" not in data or data["unit"] is None:
+        data["unit"] = ""  # default empty string
     response = supabase.table("pantry").insert(data).execute()
-    if not response.data:
+    if response.data is None:
         raise HTTPException(status_code=400, detail="Failed to insert pantry item")
     return response.data
+
 
 @app.get("/pantry/list")
 def list_pantry_items(user_id: str = Depends(get_current_user_id)):
@@ -100,5 +103,6 @@ def remove_pantry_item(item_id: int, user_id: str = Depends(get_current_user_id)
 @app.get("/")
 def root():
     return {"message": "Welcome to Pantry API!"}
+
 
 
