@@ -26,17 +26,17 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-import requests, os
 
-AI_API_KEY = os.getenv("OPENROUTER_API_KEY")
+
+
+# AI API key (OpenRouter or OpenAI)
+AI_API_KEY = os.getenv("OPENROUTER_API_KEY")  # store in env vars
+
 response = requests.get(
     "https://openrouter.ai/api/v1/models",
     headers={"Authorization": f"Bearer {AI_API_KEY}"}
 )
 print(response.status_code, response.text)
-
-# AI API key (OpenRouter or OpenAI)
-AI_API_KEY = os.getenv("OPENROUTER_API_KEY")  # store in env vars
 
 # Models
 class PantryItem(BaseModel):
@@ -122,6 +122,7 @@ def remove_pantry_item(item_id: int, user_id: str = Depends(get_current_user_id)
 @app.get("/")
 def root():
     return {"message": "Welcome to Pantry API!"}
+
 
 
 
