@@ -5,14 +5,19 @@ import requests
 import os
 from fastapi.middleware.cors import CORSMiddleware
 
+# Create FastAPI app first
+app = FastAPI()
+
+# CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Or replace * with your frontend URL for more security
+    allow_origins=["*"],  # Change to your frontend URL for security
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# Supabase
+
+# Supabase config
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://fqqpgfxufljvxgithyvb.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -20,22 +25,19 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # AI API key (OpenRouter or OpenAI)
 AI_API_KEY = os.getenv("OPENROUTER_API_KEY")  # store in env vars
 
-
-
-
-
-app = FastAPI()
-
+# Models
 class PantryItem(BaseModel):
     item: str
     quantity: int
     unit: str
 
+# Fake auth for now
 def get_current_user_id():
-    # Replace with your real auth logic
+    # Replace with real auth
     return "b2b68226-1d8f-4002-b706-7dfc327346b0"
 
-@app.get("/api/recipes")  # <-- frontend can now call /api/recipes
+# Routes
+@app.get("/api/recipes")
 def suggest_recipes(user_id: str = Depends(get_current_user_id)):
     # Get pantry items for the user
     response = supabase.table("pantry").select("item").eq("user_id", user_id).execute()
@@ -45,10 +47,8 @@ def suggest_recipes(user_id: str = Depends(get_current_user_id)):
     pantry_items = [item["item"] for item in response.data]
     ingredients_list = ", ".join(pantry_items)
 
-    # Build AI prompt
     ai_prompt = f"Suggest 5 creative recipes I can make using only: {ingredients_list}. Include ingredients and instructions."
 
-    # Call AI API
     ai_response = requests.post(
         "https://openrouter.ai/api/v1/chat/completions",
         headers={
@@ -73,13 +73,12 @@ def suggest_recipes(user_id: str = Depends(get_current_user_id)):
 def add_pantry_item(item: PantryItem, user_id: str = Depends(get_current_user_id)):
     data = item.model_dump()
     data["user_id"] = user_id
-    if "unit" not in data or data["unit"] is None:
+    if not data.get("unit"):
         data["unit"] = ""  # default empty string
     response = supabase.table("pantry").insert(data).execute()
-    if response.data is None:
+    if not response.data:
         raise HTTPException(status_code=400, detail="Failed to insert pantry item")
     return response.data
-
 
 @app.get("/pantry/list")
 def list_pantry_items(user_id: str = Depends(get_current_user_id)):
@@ -95,7 +94,7 @@ def remove_pantry_item(item_id: int, user_id: str = Depends(get_current_user_id)
         raise HTTPException(status_code=404, detail="Item not found")
 
     delete_resp = supabase.table("pantry").delete().eq("id", item_id).execute()
-    if delete_resp.data is None:
+    if not delete_resp.data:
         raise HTTPException(status_code=400, detail="Failed to delete pantry item")
 
     return {"detail": "Item deleted successfully"}
@@ -103,6 +102,3 @@ def remove_pantry_item(item_id: int, user_id: str = Depends(get_current_user_id)
 @app.get("/")
 def root():
     return {"message": "Welcome to Pantry API!"}
-
-
-
