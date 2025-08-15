@@ -5,7 +5,13 @@ import requests
 import os
 from fastapi.middleware.cors import CORSMiddleware
 
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Or replace * with your frontend URL for more security
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://fqqpgfxufljvxgithyvb.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -15,13 +21,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 AI_API_KEY = os.getenv("OPENROUTER_API_KEY")  # store in env vars
 
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Or replace * with your frontend URL for more security
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
 
 
 app = FastAPI()
@@ -100,4 +100,5 @@ def remove_pantry_item(item_id: int, user_id: str = Depends(get_current_user_id)
 @app.get("/")
 def root():
     return {"message": "Welcome to Pantry API!"}
+
 
