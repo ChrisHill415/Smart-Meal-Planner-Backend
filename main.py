@@ -3,6 +3,8 @@ from pydantic import BaseModel
 from supabase import create_client, Client
 import requests
 import os
+from fastapi.middleware.cors import CORSMiddleware
+
 
 # Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://fqqpgfxufljvxgithyvb.supabase.co")
@@ -11,6 +13,16 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # AI API key (OpenRouter or OpenAI)
 AI_API_KEY = os.getenv("OPENROUTER_API_KEY")  # store in env vars
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Or replace * with your frontend URL for more security
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 app = FastAPI()
 
@@ -88,3 +100,4 @@ def remove_pantry_item(item_id: int, user_id: str = Depends(get_current_user_id)
 @app.get("/")
 def root():
     return {"message": "Welcome to Pantry API!"}
+
