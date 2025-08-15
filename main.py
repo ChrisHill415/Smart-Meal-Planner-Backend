@@ -18,8 +18,11 @@ app.add_middleware(
 )
 
 # Supabase config
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://fqqpgfxufljvxgithyvb.supabase.co")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError("Missing SUPABASE_URL or SUPABASE_KEY environment variables.")
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # AI API key (OpenRouter or OpenAI)
@@ -102,3 +105,4 @@ def remove_pantry_item(item_id: int, user_id: str = Depends(get_current_user_id)
 @app.get("/")
 def root():
     return {"message": "Welcome to Pantry API!"}
+
