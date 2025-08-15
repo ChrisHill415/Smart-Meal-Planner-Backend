@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from supabase import create_client, Client
 import requests
 import os
+import json
 from fastapi.middleware.cors import CORSMiddleware
 
 # Create FastAPI app first
@@ -59,22 +60,25 @@ def suggest_recipes(user_id: str = Depends(get_current_user_id)):
             "Content-Type": "application/json"
         },
         json={
-            "model": "openai/gpt-oss-20b",  # switched model
+            "model": "openai/gpt-oss-20b",
             "messages": [
                 {"role": "system", "content": "You are a helpful recipe assistant."},
                 {"role": "user", "content": ai_prompt}
             ],
-            # Optional OpenRouter parameters:
-            "temperature": 0.7,           # creativity
-            "max_tokens": 800,            # adjust as needed
-            "reasoning_level": "medium"   # if supported
+            "temperature": 0.7,
+            "max_tokens": 800,
+            "reasoning_level": "medium"
         }
     )
 
     if ai_response.status_code != 200:
         raise HTTPException(status_code=500, detail=f"AI request failed: {ai_response.text}")
 
-    return ai_response.json()
+    # Parse JSON and pretty-print
+    parsed = ai_response.json()
+    pretty_json = json.dumps(parsed, indent=4)  # 4-space indentation
+
+    return json.loads(pretty_json)  # FastAPI will return it as JSON
     
 @app.post("/pantry/add", status_code=201)
 def add_pantry_item(item: PantryItem, user_id: str = Depends(get_current_user_id)):
@@ -109,5 +113,6 @@ def remove_pantry_item(item_id: int, user_id: str = Depends(get_current_user_id)
 @app.get("/")
 def root():
     return {"message": "Welcome to Pantry API!"}
+
 
 
