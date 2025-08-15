@@ -59,19 +59,23 @@ def suggest_recipes(user_id: str = Depends(get_current_user_id)):
             "Content-Type": "application/json"
         },
         json={
-            "model": "gpt-4o-mini",
+            "model": "openai/gpt-oss-20b",  # switched model
             "messages": [
                 {"role": "system", "content": "You are a helpful recipe assistant."},
                 {"role": "user", "content": ai_prompt}
-            ]
+            ],
+            # Optional OpenRouter parameters:
+            "temperature": 0.7,           # creativity
+            "max_tokens": 800,            # adjust as needed
+            "reasoning_level": "medium"   # if supported
         }
     )
 
     if ai_response.status_code != 200:
-        raise HTTPException(status_code=500, detail="AI request failed")
+        raise HTTPException(status_code=500, detail=f"AI request failed: {ai_response.text}")
 
     return ai_response.json()
-
+    
 @app.post("/pantry/add", status_code=201)
 def add_pantry_item(item: PantryItem, user_id: str = Depends(get_current_user_id)):
     data = item.model_dump()
@@ -105,4 +109,5 @@ def remove_pantry_item(item_id: int, user_id: str = Depends(get_current_user_id)
 @app.get("/")
 def root():
     return {"message": "Welcome to Pantry API!"}
+
 
