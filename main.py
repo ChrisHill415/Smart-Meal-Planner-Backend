@@ -56,7 +56,12 @@ def suggest_recipes(user_id: str = Depends(get_current_user_id)):
         return {"recipes": "No pantry items found."}
 
     pantry_items = [item["item"] for item in response.data]
-    ingredients_list = ", ".join(pantry_items)
+    # Example: include quantity and unit in the prompt
+        ingredients_list = ", ".join(
+            f"{item['quantity']} {item['unit']} {item['item']}".strip()
+            for item in response.data
+        )
+
 
     ai_prompt = (
         f"Suggest 2 creative recipes I can make using only: {ingredients_list}. "
@@ -132,6 +137,7 @@ def remove_pantry_item(item_id: int, user_id: str = Depends(get_current_user_id)
 @app.get("/")
 def root():
     return {"message": "Welcome to Pantry API!"}
+
 
 
 
