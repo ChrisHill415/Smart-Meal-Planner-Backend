@@ -62,6 +62,7 @@ def suggest_recipes(user_id: str = Depends(get_current_user_id)):
         f"Suggest 2 creative recipes I can make using only: {ingredients_list}. "
         "Assume I have basic tools, equipment and basic ingredients"
         "Include ingredients and step-by-step instructions."
+        "Begin your response by jumping into the recipes, don't include an intro"
     )
 
     # OpenRouter API call
@@ -130,4 +131,5 @@ def remove_pantry_item(item_id: int, user_id: str = Depends(get_current_user_id)
 @app.get("/")
 def root():
     return {"message": "Welcome to Pantry API!"}
+
 
