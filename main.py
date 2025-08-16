@@ -71,8 +71,11 @@ def get_current_user_id(authorization: str = Header(...)):
 
 @app.post("/pantry/add", status_code=201)
 def add_pantry_item(item: PantryItem, user_id: str = Depends(get_current_user_id)):
-    data = item.model_dump()  # use .dict() if on Pydantic v1
-    data["user_id"] = user_id
+    user_id = get_current_user_id(authorization_header)
+    data = item.model_dump()
+    data["user_id"] = user_id  # just the plain UUID string, no <>
+    response = supabase.table("pantry").insert(data).execute()
+
 
     response = supabase.table("pantry").insert(data).execute()
     if not response.data:
@@ -164,4 +167,5 @@ def suggest_recipes(user_id: str = Depends(get_current_user_id)):
 @app.get("/")
 def root():
     return {"message": "Welcome to Pantry API!"}
+
 
