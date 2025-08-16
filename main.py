@@ -42,7 +42,19 @@ class PantryItem(BaseModel):
     item: str
     quantity: int
     unit: str = ""
-
+# 🔹 Auth helper
+def get_current_user_id(authorization: str = Header(...)):
+    """
+    Extract user ID from Supabase JWT sent in Authorization header.
+    Frontend should send: "Authorization: Bearer <access_token>"
+    """
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid auth header")
+    token = authorization.split(" ")[1]
+    user_resp = supabase.auth.get_user(token)
+    if user_resp.error or not user_resp.data.user:
+        raise HTTPException(status_code=401, detail="Invalid token or user not found")
+    return user_resp.data.user.id
 
 # 🔹 Update pantry item quantity
 class PantryUpdate(BaseModel):
@@ -62,19 +74,7 @@ def update_pantry_item(item_id: int, update: PantryUpdate, user_id: str = Depend
 
     return {"detail": "Item updated successfully", "item": updated_resp.data[0]}
 
-# 🔹 Auth helper
-def get_current_user_id(authorization: str = Header(...)):
-    """
-    Extract user ID from Supabase JWT sent in Authorization header.
-    Frontend should send: "Authorization: Bearer <access_token>"
-    """
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid auth header")
-    token = authorization.split(" ")[1]
-    user_resp = supabase.auth.get_user(token)
-    if user_resp.error or not user_resp.data.user:
-        raise HTTPException(status_code=401, detail="Invalid token or user not found")
-    return user_resp.data.user.id
+
 
 # 🔹 Routes
 @app.get("/api/recipes")
@@ -163,4 +163,5 @@ def remove_pantry_item(item_id: int, user_id: str = Depends(get_current_user_id)
 @app.get("/")
 def root():
     return {"message": "Welcome to Pantry API!"}
+
 
