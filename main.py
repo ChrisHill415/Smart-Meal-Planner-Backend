@@ -11,7 +11,7 @@ app = FastAPI()
 # 🔹 CORS Middleware (restrict to Netlify frontend)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://smartmealplanning.netlify.app/pantry",
+    allow_origins=["https://smartmealplanning.netlify.app/pantry", "https://smartmealplanning.netlify.app/add",
                   "https://smartmealplanning.netlify.app"],
     allow_credentials=True,
     allow_methods=["*"],
@@ -167,5 +167,6 @@ def suggest_recipes(user_id: str = Depends(get_current_user_id)):
 @app.get("/")
 def root():
     return {"message": "Welcome to Pantry API!"}
+
 
 
