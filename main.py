@@ -1,21 +1,40 @@
-from fastapi import FastAPI, Depends, HTTPException, Header
+from fastapi import FastAPI, Depends, HTTPException, Header, Request
 from pydantic import BaseModel
 from supabase import create_client, Client
 import requests
 import os
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # 🔹 FastAPI app
 app = FastAPI()
 
 # 🔹 CORS Middleware
+origins = [
+    "http://localhost:5173",   # Vite frontend (dev)
+    "http://127.0.0.1:5173",   # alternate localhost
+    "https://your-frontend-domain.com",  # your production frontend
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace with your frontend URL for security
+    allow_origins=origins,       # better to whitelist instead of "*"
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Handle OPTIONS requests explicitly (for safety)
+@app.options("/{rest_of_path:path}")
+async def preflight_handler(request: Request, rest_of_path: str):
+    response = JSONResponse(content={"message": "CORS preflight OK"})
+    response.headers["Access-Control-Allow-Origin"] = request.headers.get("origin", "*")
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = request.headers.get(
+        "Access-Control-Request-Headers", "*"
+    )
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
 
 # 🔹 Supabase config
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -31,11 +50,14 @@ if not AI_API_KEY:
     raise RuntimeError("Missing OPENROUTER_API_KEY environment variable.")
 
 # 🔹 Test AI API key
-response = requests.get(
-    "https://openrouter.ai/api/v1/models",
-    headers={"Authorization": f"Bearer {AI_API_KEY}"}
-)
-print("OpenRouter test:", response.status_code, response.text)
+try:
+    response = requests.get(
+        "https://openrouter.ai/api/v1/models",
+        headers={"Authorization": f"Bearer {AI_API_KEY}"}
+    )
+    print("OpenRouter test:", response.status_code, response.text)
+except Exception as e:
+    print("⚠️ Could not verify OpenRouter key:", str(e))
 
 # 🔹 Models
 class PantryItem(BaseModel):
@@ -48,10 +70,6 @@ class PantryUpdate(BaseModel):
 
 # 🔹 Auth helper
 def get_current_user_id(authorization: str = Header(...)):
-    """
-    Extract user ID from Supabase JWT sent in Authorization header.
-    Frontend should send: "Authorization: Bearer <access_token>"
-    """
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid auth header")
     token = authorization.split(" ")[1]
@@ -59,7 +77,6 @@ def get_current_user_id(authorization: str = Header(...)):
     if user_resp.error or not user_resp.data or not user_resp.data.get("user"):
         raise HTTPException(status_code=401, detail="Invalid token or user not found")
     return user_resp.data["user"]["id"]
-
 # 🔹 Routes
 
 # Add pantry item
@@ -158,3 +175,4 @@ def suggest_recipes(user_id: str = Depends(get_current_user_id)):
 @app.get("/")
 def root():
     return {"message": "Welcome to Pantry API!"}
+
