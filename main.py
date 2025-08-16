@@ -43,6 +43,25 @@ class PantryItem(BaseModel):
     quantity: int
     unit: str = ""
 
+
+# 🔹 Update pantry item quantity
+class PantryUpdate(BaseModel):
+    quantity: int
+
+@app.patch("/pantry/update/{item_id}")
+def update_pantry_item(item_id: int, update: PantryUpdate, user_id: str = Depends(get_current_user_id)):
+    # Check if item exists for this user
+    item_resp = supabase.table("pantry").select("*").eq("id", item_id).eq("user_id", user_id).execute()
+    if not item_resp.data:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    # Update the quantity
+    updated_resp = supabase.table("pantry").update({"quantity": update.quantity}).eq("id", item_id).execute()
+    if not updated_resp.data:
+        raise HTTPException(status_code=400, detail="Failed to update pantry item")
+
+    return {"detail": "Item updated successfully", "item": updated_resp.data[0]}
+
 # 🔹 Auth helper
 def get_current_user_id(authorization: str = Header(...)):
     """
@@ -144,3 +163,4 @@ def remove_pantry_item(item_id: int, user_id: str = Depends(get_current_user_id)
 @app.get("/")
 def root():
     return {"message": "Welcome to Pantry API!"}
+
