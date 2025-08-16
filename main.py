@@ -1,22 +1,23 @@
-from fastapi import FastAPI, Depends, HTTPException, Path
+from fastapi import FastAPI, Depends, HTTPException, Header
 from pydantic import BaseModel
 from supabase import create_client, Client
+import requests
 import os
 from fastapi.middleware.cors import CORSMiddleware
 
-# FastAPI app
+# 🔹 FastAPI app
 app = FastAPI()
 
-# CORS Middleware
+# 🔹 CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace with frontend URL in production
+    allow_origins=["*"],  # Replace with your frontend URL for security
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Supabase config
+# 🔹 Supabase config
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -24,26 +25,98 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Fake auth for demo
-def get_current_user_id():
-    return "b2b68226-1d8f-4002-b706-7dfc327346b0"
+# 🔹 AI API key
+AI_API_KEY = os.getenv("OPENROUTER_API_KEY")
+if not AI_API_KEY:
+    raise RuntimeError("Missing OPENROUTER_API_KEY environment variable.")
 
-# Models
+# 🔹 Test AI API key
+response = requests.get(
+    "https://openrouter.ai/api/v1/models",
+    headers={"Authorization": f"Bearer {AI_API_KEY}"}
+)
+print("OpenRouter test:", response.status_code, response.text)
+
+# 🔹 Models
 class PantryItem(BaseModel):
     item: str
     quantity: int
     unit: str = ""
 
-class UpdateQuantity(BaseModel):
-    quantity: int
+# 🔹 Auth helper
+def get_current_user_id(authorization: str = Header(...)):
+    """
+    Extract user ID from Supabase JWT sent in Authorization header.
+    Frontend should send: "Authorization: Bearer <access_token>"
+    """
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid auth header")
+    token = authorization.split(" ")[1]
+    user_resp = supabase.auth.get_user(token)
+    if user_resp.error or not user_resp.data.user:
+        raise HTTPException(status_code=401, detail="Invalid token or user not found")
+    return user_resp.data.user.id
 
-# -----------------------------
-# Pantry CRUD endpoints
-# -----------------------------
+# 🔹 Routes
+@app.get("/api/recipes")
+def suggest_recipes(user_id: str = Depends(get_current_user_id)):
+    # Fetch pantry items for logged-in user
+    response = supabase.table("pantry").select("*").eq("user_id", user_id).execute()
+    if not response.data:
+        return {"recipes": "No pantry items found."}
+
+    # Build ingredient list for AI
+    ingredients_list = ", ".join(
+        f"{item['quantity']} {item['unit']} {item['item']}".strip()
+        for item in response.data
+    )
+
+    ai_prompt = (
+        f"Suggest 2 creative recipes I can make using only: {ingredients_list}. "
+        "Assume I have basic tools, equipment and basic ingredients. "
+        "Include ingredients and step-by-step instructions. "
+        "Begin your response by jumping into the recipes, don't include an intro. "
+        "Format each recipe starting with '### Recipe:' "
+    )
+
+    # OpenRouter API call
+    ai_response = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {AI_API_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": "openai/gpt-oss-20b",
+            "messages": [
+                {"role": "system", "content": "You are a helpful recipe assistant."},
+                {"role": "user", "content": ai_prompt}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 2000,
+            "reasoning_level": "medium"
+        }
+    )
+
+    if ai_response.status_code != 200:
+        raise HTTPException(status_code=500, detail=f"AI request failed: {ai_response.text}")
+
+    data = ai_response.json()
+
+    try:
+        recipe_text = data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError):
+        recipe_text = "No recipes generated."
+
+    return {"recipes": recipe_text}
+
+
 @app.post("/pantry/add", status_code=201)
 def add_pantry_item(item: PantryItem, user_id: str = Depends(get_current_user_id)):
     data = item.model_dump()
     data["user_id"] = user_id
+    if not data.get("unit"):
+        data["unit"] = ""
     response = supabase.table("pantry").insert(data).execute()
     if not response.data:
         raise HTTPException(status_code=400, detail="Failed to insert pantry item")
@@ -52,7 +125,9 @@ def add_pantry_item(item: PantryItem, user_id: str = Depends(get_current_user_id
 @app.get("/pantry/list")
 def list_pantry_items(user_id: str = Depends(get_current_user_id)):
     response = supabase.table("pantry").select("*").eq("user_id", user_id).execute()
-    return response.data or []
+    if response.data is None:
+        raise HTTPException(status_code=400, detail="Failed to fetch pantry items")
+    return response.data
 
 @app.delete("/pantry/remove/{item_id}")
 def remove_pantry_item(item_id: int, user_id: str = Depends(get_current_user_id)):
@@ -66,30 +141,6 @@ def remove_pantry_item(item_id: int, user_id: str = Depends(get_current_user_id)
 
     return {"detail": "Item deleted successfully"}
 
-# 🔹 PATCH endpoint for partial quantity updates
-@app.patch("/pantry/update/{item_id}")
-def update_pantry_quantity(
-    item_id: int = Path(..., description="ID of the pantry item"),
-    payload: UpdateQuantity = None,
-    user_id: str = Depends(get_current_user_id)
-):
-    if payload.quantity < 0:
-        raise HTTPException(status_code=400, detail="Quantity must be non-negative")
-
-    # Check if the item exists
-    item_resp = supabase.table("pantry").select("*").eq("id", item_id).eq("user_id", user_id).execute()
-    if not item_resp.data:
-        raise HTTPException(status_code=404, detail="Item not found")
-
-    if payload.quantity == 0:
-        # Delete if quantity is 0
-        delete_resp = supabase.table("pantry").delete().eq("id", item_id).execute()
-        if not delete_resp.data:
-            raise HTTPException(status_code=400, detail="Failed to delete pantry item")
-        return {"detail": "Item deleted successfully"}
-
-    # Otherwise, update quantity
-    update_resp = supabase.table("pantry").update({"quantity": payload.quantity}).eq("id", item_id).execute()
-    if not update_resp.data:
-        raise HTTPException(status_code=400, detail="Failed to update pantry item")
-    return update_resp.data
+@app.get("/")
+def root():
+    return {"message": "Welcome to Pantry API!"}
